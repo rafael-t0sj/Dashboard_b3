@@ -238,12 +238,15 @@ function rebuildAll(){ recompute(); rebuildSelect();
 function applyPayload(rows,ts){ DATA=Array.isArray(rows)?rows:[]; CACHE={ts:ts||Date.now()}; rebuildAll(); }
 function cacheGet(){ try{var c=JSON.parse(localStorage.getItem(CACHE_KEY)); if(c&&c.ts&&(Date.now()-c.ts)<TTL&&Array.isArray(c.data)) return c;}catch(e){} return null; }
 function cacheSet(rows,date){ try{ localStorage.setItem(CACHE_KEY,JSON.stringify({ts:Date.now(),data:rows,date:date})); }catch(e){} }
+function sameData(a,b){ try{ return JSON.stringify(a)===JSON.stringify(b); }catch(e){ return false; } }
 function load(force){
-  if(!force){ var c=cacheGet(); if(c){ if(c.date) DATA_DATE=fmtDate(c.date); applyPayload(c.data,c.ts); return; } }
-  fetch('data.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); })
+  var c=cacheGet();
+  if(c && !force){ if(c.date) DATA_DATE=fmtDate(c.date); applyPayload(c.data,c.ts); }   // render imediato do cache
+  fetch('data.json?t='+Date.now(),{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); })
     .then(function(j){ var rows=Array.isArray(j)?j:(j.rows||j.data); var date=(j&&j.date)?j.date:DATA_DATE_RAW;
-        DATA_DATE=fmtDate(date); cacheSet(rows,date); applyPayload(rows,Date.now()); })
-    .catch(function(){ DATA_DATE=fmtDate(DATA_DATE_RAW); applyPayload(EMBED,Date.now()); }); }
+        cacheSet(rows,date);
+        if(force || !c || !sameData(rows,c.data)){ DATA_DATE=fmtDate(date); applyPayload(rows,Date.now()); } })   // só re-renderiza se mudou (ou forçado)
+    .catch(function(){ if(!c){ DATA_DATE=fmtDate(DATA_DATE_RAW); applyPayload(EMBED,Date.now()); } }); }
 document.getElementById('refresh').addEventListener('click',function(){ var b=this; b.textContent='Atualizando…'; b.disabled=true;
   try{ localStorage.removeItem(CACHE_KEY); }catch(e){}
   load(true);
